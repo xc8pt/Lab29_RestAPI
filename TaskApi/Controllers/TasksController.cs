@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR.Protocol;
 using TaskApi.Models;
 
 namespace TaskApi.Controllers;
@@ -108,5 +109,75 @@ public class TasksController : ControllerBase {
         task.IsCompleted = !task.IsCompleted;
 
         return Ok(task);
+    }
+
+    // Добавляем маршрут поиска
+
+    [HttpGet("search")]
+    public ActionResult<IEnumerable<TaskItem>> Search([FromQuery] string query) {
+        if (string.IsNullOrWhiteSpace(query))
+            return BadRequest(new { Message = "Параметр query не может быть пустым" });
+        var results = _tasks
+            .Where(t => t.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || t.Description.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return Ok(results);
+    }
+
+    // Добавляем маршрут фильтрации по приоритету
+    [HttpGet("priority{level}")]
+    public ActionResult<IEnumerable<TaskItem>> GetByPriority(string level) {
+        var allowed = new[] { "Low", "Normal", "High" };
+
+        if (!allowed.Contains(level, StringComparer.OrdinalIgnoreCase))
+            return BadRequest(new { Message = "Допустимые значения: Low, Normal, High" });
+
+        var results = _tasks
+            .Where(t => t.Priority.Equals(level, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return Ok(results);
+    }
+
+    //  Добавляем маршрут статистики
+
+    [HttpGet("stats")]
+    public ActionResult GetStats() {
+        var total = _tasks.Count;
+        var completed = _tasks.Count(t => t.IsCompleted);
+        var pending = total - completed;
+
+        var stats = new {
+            Total = total,
+            Completed = completed,
+            Pending = pending,
+            CompletionPct = total > 0 ? Math.Round((double)completed / total * 100, 1) : 0,
+            ByPriority = new {
+                High = _tasks.Count(t => t.Priority == "High"),
+                Normal = _tasks.Count(t => t.Priority == "Normal"),
+                Low = _tasks.Count(t => t.Priority == "Low"),
+            }
+        };
+
+        return Ok(stats);
+    }
+
+    // Добавляем маршрут сортировки
+    [HttpGet("sorted")]
+    public ActionResult<IEnumerable<TaskItem>> GetSorted(
+        [FromQuery] string by = "id",
+        [FromQuery] bool desc = false) {
+        IEnumerable<TaskItem> sorted = by.ToLower() switch {
+            "title" => _tasks.OrderBy(t => t.Title),
+            "priority" => _tasks.OrderBy(t => t.Priority),
+            "createdat" => _tasks.OrderBy(t => t.CreatedAt),
+            _ => _tasks.OrderBy(t => t.Id),
+        };
+
+        if (desc)
+            sorted = sorted.Reverse();
+
+        return Ok(sorted);
     }
 }
