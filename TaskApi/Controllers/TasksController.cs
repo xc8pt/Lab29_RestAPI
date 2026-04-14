@@ -103,7 +103,7 @@ public class TasksController : ControllerBase {
         var task = _tasks.FirstOrDefault(t => t.Id == id);
 
         if (task is null)
-            return NotFound(new { Meassge = $"Задача с id = {id} не найдена" });
+            return NotFound(new { Message = $"Задача с id = {id} не найдена" });
 
         task.IsCompleted = !task.IsCompleted;
 
